@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Wing Particle Editor</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; }
+    .grid { display: grid; gap: 2px; margin-top: 10px; }
+    .cell { width: 20px; height: 20px; background: #eee; border: 1px solid #ccc; cursor: pointer; }
+    .cell.active { background: #3fa9f5; }
+    .controls { margin-bottom: 10px; }
+    .cell:hover { outline: 2px solid #333; }
+    .config-panel { margin-top: 10px; }
+    label { display: inline-block; width: 100px; }
+    select, input { margin: 2px 0 6px 0; }
+    .particle-list { margin-top: 6px; font-size: 0.9em; }
+  </style>
+</head>
+<body>
+  <h2>🧚 Wing Particle Editor</h2>
+
+  <div class="controls">
+    <label>Grid Width (X):</label><input type="number" id="gridWidth" value="10" min="1" />
+    <label>Grid Height (Y):</label><input type="number" id="gridHeight" value="10" min="1" />
+    <label>Z Layers:</label><input type="number" id="zLayers" value="3" min="1" />
+    <button onclick="generateGrid()">Generate Grid</button>
+  </div>
+
+  <div class="controls">
+    <label>Wing Side:</label>
+    <select id="wingSide">
+      <option value="left">Left</option>
+      <option value="right">Right</option>
+    </select>
+    <label>Z Layer:</label>
+    <select id="zLayer"></select>
+  </div>
+
+  <div class="config-panel">
+    <label>Particle:</label>
+    <select id="particleType"></select><br/>
+    <label>Speed:</label><input type="number" id="particleSpeed" value="0.1" step="0.1" /><br/>
+    <label>Count:</label><input type="number" id="particleCount" value="1" min="1" /><br/>
+    <button onclick="downloadYML()">📥 Download .yml</button>
+  </div>
+
+  <div id="gridContainer"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <script>
+    const allParticles = [
+      "ASH", "BARRIER", "BLOCK_CRACK", "BLOCK_DUST", "BUBBLE", "CLOUD", "CRIT", "CRIT_MAGIC", "DAMAGE_INDICATOR",
+      "DRAGON_BREATH", "DRIP_LAVA", "DRIP_WATER", "ENCHANTMENT_TABLE", "END_ROD", "EXPLOSION_HUGE", "EXPLOSION_LARGE",
+      "EXPLOSION_NORMAL", "FIREWORKS_SPARK", "FLAME", "FOOTSTEP", "HEART", "ITEM_CRACK", "LAVA", "MOB_APPEARANCE",
+      "NOTE", "PORTAL", "REDSTONE", "SLIME", "SMOKE_LARGE", "SMOKE_NORMAL", "SNOWBALL", "SNOW_SHOVEL", "SPELL",
+      "SPELL_INSTANT", "SPELL_MOB", "SPELL_MOB_AMBIENT", "SPELL_WITCH", "SPIT", "SUSPENDED", "SWEEP_ATTACK",
+      "TOTEM", "TOWN_AURA", "VILLAGER_ANGRY", "VILLAGER_HAPPY", "WATER_BUBBLE", "WATER_DROP", "WATER_SPLASH", "WATER_WAKE"
+    ];
+
+    const data = {};
+    let currentWidth = 10, currentHeight = 10;
+
+    function populateParticles() {
+      const particleSelect = document.getElementById('particleType');
+      allParticles.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        particleSelect.appendChild(opt);
+      });
+    }
+
+    function populateZLayers() {
+      const z = parseInt(document.getElementById("zLayers").value);
+      const zSel = document.getElementById("zLayer");
+      zSel.innerHTML = "";
+      for (let i = 0; i < z; i++) {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = i;
+        zSel.appendChild(opt);
+      }
+    }
+
+    function generateGrid() {
+      currentWidth = parseInt(document.getElementById("gridWidth").value);
+      currentHeight = parseInt(document.getElementById("gridHeight").value);
+      populateZLayers();
+      const container = document.getElementById("gridContainer");
+      container.innerHTML = "";
+
+      const grid = document.createElement("div");
+      grid.className = "grid";
+      grid.style.gridTemplateColumns = `repeat(${currentWidth}, 20px)`;
+
+      for (let y = currentHeight - 1; y >= 0; y--) {
+        for (let x = 0; x < currentWidth; x++) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.dataset.x = x;
+          cell.dataset.y = y;
+          cell.addEventListener("click", () => toggleCell(cell));
+          grid.appendChild(cell);
+        }
+      }
+      container.appendChild(grid);
+    }
+
+    function toggleCell(cell) {
+      const x = parseInt(cell.dataset.x);
+      const y = parseInt(cell.dataset.y);
+      const z = parseInt(document.getElementById("zLayer").value);
+      const side = document.getElementById("wingSide").value;
+      const particle = document.getElementById("particleType").value;
+      const speed = parseFloat(document.getElementById("particleSpeed").value);
+      const count = parseInt(document.getElementById("particleCount").value);
+
+      const key = `${side}-${z}`;
+      if (!data[key]) data[key] = [];
+      const pointStr = JSON.stringify([x, y, z, particle, speed, count]);
+      const existing = data[key].findIndex(p => JSON.stringify(p) === pointStr);
+
+      if (existing >= 0) {
+        data[key].splice(existing, 1);
+        cell.classList.remove("active");
+      } else {
+        data[key].push([x, y, z, particle, speed, count]);
+        cell.classList.add("active");
+      }
+    }
+
+    function downloadYML() {
+      const yamlOut = { left: {}, right: {} };
+      for (const key in data) {
+        const [side, z] = key.split("-");
+        if (!yamlOut[side][z]) yamlOut[side][z] = [];
+        data[key].forEach(([x, y, z, p, s, c]) => {
+          for (let i = 0; i < c; i++) {
+            yamlOut[side][z].push([x, y, z, p]);
+          }
+        });
+      }
+
+      const ymlStr = jsyaml.dump(yamlOut);
+      const blob = new Blob([ymlStr], { type: "text/yaml" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "wing.yml";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    window.onload = () => {
+      populateParticles();
+      populateZLayers();
+      generateGrid();
+    };
+  </script>
+</body>
+</html>
