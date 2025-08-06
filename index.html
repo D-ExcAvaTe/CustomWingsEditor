@@ -132,16 +132,23 @@
     function downloadYML() {
       const yamlOut = { left: {}, right: {} };
       for (const key in data) {
-        const [side, z] = key.split("-");
-        if (!yamlOut[side][z]) yamlOut[side][z] = [];
+        const [side, zStr] = key.split("-");
+        const z = parseInt(zStr);
+        if (!yamlOut[side][zStr]) yamlOut[side][zStr] = [];
+
         data[key].forEach(([x, y, z, p, s, c]) => {
-          for (let i = 0; i < c; i++) {
-            yamlOut[side][z].push([x, y, z, p]);
-          }
+          yamlOut[side][zStr].push({
+            x: parseFloat(x),
+            y: parseFloat(y),
+            z: parseFloat(z),
+            particle: p,
+            speed: parseFloat(s),
+            count: parseInt(c)
+          });
         });
       }
 
-      const ymlStr = jsyaml.dump(yamlOut);
+      const ymlStr = jsyaml.dump(yamlOut, { sortKeys: false });
       const blob = new Blob([ymlStr], { type: "text/yaml" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
