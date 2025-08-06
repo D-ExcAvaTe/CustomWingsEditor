@@ -2,231 +2,235 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Wing Particle Editor</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wing Config Generator</title>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      margin: 0;
-      padding: 20px;
-      background: #f4f4f4;
-      color: #333;
-    }
-    h2 { margin-top: 0; }
-
-    .container {
+      font-family: sans-serif;
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: row;
+      padding: 20px;
       gap: 20px;
-    }
-
-    .grid-wrapper {
-      flex-grow: 1;
     }
 
     .grid {
       display: grid;
+      grid-template-columns: repeat(20, 20px);
       gap: 2px;
-      background: #ccc;
-      user-select: none;
     }
 
     .cell {
       width: 20px;
       height: 20px;
-      background: #fff;
-      border: 1px solid #bbb;
+      border: 1px solid #ccc;
+      text-align: center;
+      font-size: 12px;
+      line-height: 20px;
+      cursor: pointer;
+    }
+
+    .cell.active {
+      background-color: #444;
+      color: #fff;
+    }
+
+    .controls, .preview {
+      flex: 1;
+    }
+
+    .symbol-preview {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .symbol-box {
+      width: 20px;
+      height: 20px;
       text-align: center;
       line-height: 20px;
-      font-size: 12px;
-      cursor: pointer;
-    }
-
-    .panel {
-      min-width: 300px;
-      background: white;
-      border: 1px solid #ddd;
-      padding: 15px;
-      border-radius: 8px;
-    }
-
-    label {
-      display: block;
-      margin-top: 10px;
-      font-weight: bold;
-    }
-
-    input, select {
-      width: 100%;
-      margin-top: 5px;
-      padding: 5px;
       border: 1px solid #ccc;
-      border-radius: 4px;
     }
 
-    button {
-      margin-top: 15px;
-      padding: 10px 15px;
-      background: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
+    .symbol-config {
+      margin-bottom: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
     }
 
-    button:hover {
-      background: #45a049;
+    textarea {
+      width: 100%;
+      height: 150px;
     }
   </style>
 </head>
 <body>
-  <h2>🧚 Custom Wings Editor</h2>
-  <div class="container">
-    <div class="panel">
-      <label>Width (X)</label>
-      <input type="number" id="width" value="20" min="1" />
-      <label>Height (Y)</label>
-      <input type="number" id="height" value="10" min="1" />
-      <label>Symbol (used in grid)</label>
-      <input type="text" id="symbol" value="x" maxlength="1" />
-      <button onclick="generateGrid()">Generate Grid</button>
-
-      <label>Particle</label>
-      <select id="particle">
-        <option value="REDSTONE">REDSTONE</option>
-        <option value="FLAME">FLAME</option>
-        <option value="SOUL">SOUL</option>
-        <option value="VILLAGER_HAPPY">VILLAGER_HAPPY</option>
-        <option value="CLOUD">CLOUD</option>
-        <option value="HEART">HEART</option>
-      </select>
-
-      <label>Color (hex, REDSTONE only)</label>
-      <input type="text" id="color" value="ff0000" />
-
-      <label>Distance</label>
-      <input type="number" id="distance" value="0" step="0.1" />
-
-      <label>Height</label>
-      <input type="number" id="heightOffset" value="0" step="0.1" />
-
-      <label>Angle</label>
-      <input type="number" id="angle" value="0" step="0.1" />
-
-      <label>Speed</label>
-      <input type="number" id="speed" value="0" step="0.1" />
-
-      <button onclick="applySymbolSettings()">Apply Symbol Settings</button>
-      <button onclick="downloadYML()">📥 Download wing.yml</button>
-    </div>
-
-    <div class="grid-wrapper">
-      <div id="grid" class="grid"></div>
-    </div>
+  <div class="controls">
+    <h3>Wing Grid</h3>
+    <label>Rows: <input type="number" id="rows" value="10"></label>
+    <label>Cols: <input type="number" id="cols" value="20"></label>
+    <button onclick="generateGrid()">Generate</button>
+    <br/><br/>
+    <label>Current Symbol: <input id="symbol" value="x" maxlength="1"></label>
+    <div id="grid" class="grid"></div>
+    <br/>
+    <button onclick="downloadYml()">Download .yml</button>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <div class="preview">
+    <h3>Symbol Config</h3>
+    <div id="symbolConfigs"></div>
+    <button onclick="addSymbolConfig()">+ Add Symbol</button>
+
+    <h3>Preview</h3>
+    <div id="previewBox" class="symbol-preview"></div>
+
+    <h3>YML Output</h3>
+    <textarea id="output" readonly></textarea>
+  </div>
+
   <script>
     let gridData = [];
-    let isMouseDown = false;
-    let currentSymbol = 'x';
-    const symbolSettings = {};
+    let isDragging = false;
+    let rows = 10;
+    let cols = 20;
+
+    const symbolConfigs = {};
+    const previewBox = document.getElementById("previewBox");
+    const gridContainer = document.getElementById("grid");
+    const outputBox = document.getElementById("output");
 
     function generateGrid() {
-      const w = parseInt(document.getElementById('width').value);
-      const h = parseInt(document.getElementById('height').value);
-      const grid = document.getElementById('grid');
-      grid.innerHTML = '';
-      grid.style.gridTemplateColumns = `repeat(${w}, 20px)`;
-      gridData = Array.from({ length: h }, () => Array(w).fill('-'));
+      rows = parseInt(document.getElementById("rows").value);
+      cols = parseInt(document.getElementById("cols").value);
+      gridContainer.innerHTML = "";
+      gridData = [];
 
-      for (let y = 0; y < h; y++) {
-        for (let x = 0; x < w; x++) {
-          const cell = document.createElement('div');
-          cell.className = 'cell';
-          cell.dataset.x = x;
-          cell.dataset.y = y;
-          cell.addEventListener('mousedown', (e) => {
-            e.preventDefault();
-            isMouseDown = true;
-            drawCell(cell);
-          });
-          cell.addEventListener('mouseover', () => {
-            if (isMouseDown) drawCell(cell);
-          });
-          cell.addEventListener('mouseup', () => isMouseDown = false);
-          grid.appendChild(cell);
+      for (let r = 0; r < rows; r++) {
+        const row = [];
+        for (let c = 0; c < cols; c++) {
+          const div = document.createElement("div");
+          div.className = "cell";
+          div.dataset.row = r;
+          div.dataset.col = c;
+          div.onmousedown = handleCellClick;
+          div.onmouseover = handleDrag;
+          gridContainer.appendChild(div);
+          row.push("");
         }
+        gridData.push(row);
       }
     }
 
-    document.body.addEventListener('mouseup', () => isMouseDown = false);
-
-    function drawCell(cell) {
-      const x = parseInt(cell.dataset.x);
-      const y = parseInt(cell.dataset.y);
-      const symbol = document.getElementById('symbol').value.trim().charAt(0) || 'x';
-      cell.textContent = symbol;
-      gridData[y][x] = symbol;
+    function handleCellClick(e) {
+      isDragging = true;
+      const row = parseInt(e.target.dataset.row);
+      const col = parseInt(e.target.dataset.col);
+      const currentSymbol = document.getElementById("symbol").value || "x";
+      const current = gridData[row][col];
+      if (current === currentSymbol) {
+        gridData[row][col] = "";
+        e.target.classList.remove("active");
+        e.target.textContent = "";
+      } else {
+        gridData[row][col] = currentSymbol;
+        e.target.classList.add("active");
+        e.target.textContent = currentSymbol;
+      }
+      renderOutput();
     }
 
-    function applySymbolSettings() {
-      const sym = document.getElementById('symbol').value.trim().charAt(0) || 'x';
-      symbolSettings[sym] = {
-        particle: document.getElementById('particle').value,
-        color: document.getElementById('color').value,
-        distance: parseFloat(document.getElementById('distance').value),
-        height: parseFloat(document.getElementById('heightOffset').value),
-        angle: parseFloat(document.getElementById('angle').value),
-        speed: parseFloat(document.getElementById('speed').value)
-      };
-      alert(`Settings applied to symbol "${sym}"`);
+    function handleDrag(e) {
+      if (!isDragging) return;
+      const row = parseInt(e.target.dataset.row);
+      const col = parseInt(e.target.dataset.col);
+      const currentSymbol = document.getElementById("symbol").value || "x";
+      const current = gridData[row][col];
+      if (current !== currentSymbol) {
+        gridData[row][col] = currentSymbol;
+        e.target.classList.add("active");
+        e.target.textContent = currentSymbol;
+      }
+      renderOutput();
     }
 
-    function downloadYML() {
-      const ymlObj = {
-        showWhenMoving: true,
-        whitelistedWorlds: ["all"],
-        menuItem: {
-          hideInMenu: false,
-          name: "&5Custom Wing",
-          material: "ENDER_EYE",
-          slot: 1,
-          page: 1,
-          loreWhenEquipped: ["&6Wing equipped"],
-          loreWhenUnequipped: ["&cWing unequipped"],
-          loreWhenNoPermission: ["&cYou don't own this wing"],
-          loreWhenCanBuy: ["&eYou can buy this wing"]
-        },
-        wing: {
-          startVertical: -1.5,
-          startDistanceToPlayer: 0.1,
-          distanceBetweenParticles: 0.1,
-          timer: 0.1,
-          flapAnimation: false,
-          flapSpeed: 1,
-          startOffset: 30,
-          stopOffset: 70,
-          particleLayout: {},
-          particles: symbolSettings
+    document.body.onmouseup = () => {
+      isDragging = false;
+    };
+
+    function addSymbolConfig() {
+      const container = document.createElement("div");
+      container.className = "symbol-config";
+
+      const symbol = prompt("Enter symbol (1 char):");
+      if (!symbol || symbol.length !== 1) return;
+
+      symbolConfigs[symbol] = {};
+
+      container.innerHTML = `
+        <strong>Symbol: ${symbol}</strong><br/>
+        Particle: <input value="" placeholder="e.g. REDSTONE" oninput="updateConfig('${symbol}', 'particle', this.value)"><br/>
+        Color (hex): <input placeholder="e.g. 0xFF0000" oninput="updateConfig('${symbol}', 'color', this.value)"><br/>
+        Distance: <input type="number" step="0.01" oninput="updateConfig('${symbol}', 'distance', this.value)"><br/>
+        Height: <input type="number" step="0.01" oninput="updateConfig('${symbol}', 'height', this.value)"><br/>
+        Angle: <input type="number" step="1" oninput="updateConfig('${symbol}', 'angle', this.value)"><br/>
+        Speed: <input type="number" step="0.01" oninput="updateConfig('${symbol}', 'speed', this.value)"><br/>
+        Block Type: <input placeholder="DIRT" oninput="updateConfig('${symbol}', 'blockType', this.value)"><br/>
+      `;
+
+      document.getElementById("symbolConfigs").appendChild(container);
+
+      const preview = document.createElement("div");
+      preview.className = "symbol-box";
+      preview.textContent = symbol;
+      previewBox.appendChild(preview);
+    }
+
+    function updateConfig(symbol, key, value) {
+      if (!symbolConfigs[symbol]) return;
+      if (!value) {
+        delete symbolConfigs[symbol][key];
+      } else {
+        symbolConfigs[symbol][key] = isNaN(value) || key === "particle" || key === "color" || key === "blockType" ? value : parseFloat(value);
+      }
+      renderOutput();
+    }
+
+    function renderOutput() {
+      let layout = "";
+      let particles = "";
+
+      for (let r = 0; r < gridData.length; r++) {
+        const row = gridData[r].map(cell => cell || "-").join(",");
+        layout += `    ${r + 1}: "${row}"\n`;
+      }
+
+      let particleDefs = "";
+      for (const [symbol, config] of Object.entries(symbolConfigs)) {
+        particleDefs += `    ${symbol}:\n`;
+        for (const [k, v] of Object.entries(config)) {
+          if (k === "particle") {
+            particleDefs += `      ${k}: "${v}"\n`;
+          } else {
+            particleDefs += `      ${k}: ${v}\n`;
+          }
         }
-      };
+      }
 
-      // Build layout
-      gridData.forEach((row, index) => {
-        ymlObj.wing.particleLayout[index + 1] = row.join(',');
-      });
-
-      const ymlText = jsyaml.dump(ymlObj, { lineWidth: -1 });
-      const blob = new Blob([ymlText], { type: 'text/yaml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'wing.yml';
-      a.click();
-      URL.revokeObjectURL(url);
+      const yml = `menuItem:\n  name: "&fMy Wing"\n  material: FEATHER\n  slot: 0\n  page: 1\n\nwing:\n  startVertical: 0.0\n  startDistanceToPlayer: 0.2\n  distanceBetweenParticles: 0.1\n  timer: 2\n\n  particleLayout:\n${layout}\n  particles:\n${particleDefs}`;
+      outputBox.value = yml;
     }
 
-    window.onload = generateGrid;
+    function downloadYml() {
+      const blob = new Blob([outputBox.value], { type: "text/yaml" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "wing.yml";
+      link.click();
+    }
+
+    generateGrid();
   </script>
 </body>
 </html>
