@@ -4,165 +4,229 @@
   <meta charset="UTF-8" />
   <title>Wing Particle Editor</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    .grid { display: grid; gap: 2px; margin-top: 10px; }
-    .cell { width: 20px; height: 20px; background: #eee; border: 1px solid #ccc; cursor: pointer; }
-    .cell.active { background: #3fa9f5; }
-    .controls { margin-bottom: 10px; }
-    .cell:hover { outline: 2px solid #333; }
-    .config-panel { margin-top: 10px; }
-    label { display: inline-block; width: 100px; }
-    select, input { margin: 2px 0 6px 0; }
-    .particle-list { margin-top: 6px; font-size: 0.9em; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f4f4f4;
+      color: #333;
+    }
+    h2 { margin-top: 0; }
+
+    .container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    .grid-wrapper {
+      flex-grow: 1;
+    }
+
+    .grid {
+      display: grid;
+      gap: 2px;
+      background: #ccc;
+      user-select: none;
+    }
+
+    .cell {
+      width: 20px;
+      height: 20px;
+      background: #fff;
+      border: 1px solid #bbb;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .panel {
+      min-width: 300px;
+      background: white;
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 8px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      font-weight: bold;
+    }
+
+    input, select {
+      width: 100%;
+      margin-top: 5px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    button {
+      margin-top: 15px;
+      padding: 10px 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
   </style>
 </head>
 <body>
-  <h2>🧚 Wing Particle Editor</h2>
+  <h2>🧚 Custom Wings Editor</h2>
+  <div class="container">
+    <div class="panel">
+      <label>Width (X)</label>
+      <input type="number" id="width" value="20" min="1" />
+      <label>Height (Y)</label>
+      <input type="number" id="height" value="10" min="1" />
+      <label>Symbol (used in grid)</label>
+      <input type="text" id="symbol" value="x" maxlength="1" />
+      <button onclick="generateGrid()">Generate Grid</button>
 
-  <div class="controls">
-    <label>Grid Width (X):</label><input type="number" id="gridWidth" value="10" min="1" />
-    <label>Grid Height (Y):</label><input type="number" id="gridHeight" value="10" min="1" />
-    <label>Z Layers:</label><input type="number" id="zLayers" value="3" min="1" />
-    <button onclick="generateGrid()">Generate Grid</button>
+      <label>Particle</label>
+      <select id="particle">
+        <option value="REDSTONE">REDSTONE</option>
+        <option value="FLAME">FLAME</option>
+        <option value="SOUL">SOUL</option>
+        <option value="VILLAGER_HAPPY">VILLAGER_HAPPY</option>
+        <option value="CLOUD">CLOUD</option>
+        <option value="HEART">HEART</option>
+      </select>
+
+      <label>Color (hex, REDSTONE only)</label>
+      <input type="text" id="color" value="ff0000" />
+
+      <label>Distance</label>
+      <input type="number" id="distance" value="0" step="0.1" />
+
+      <label>Height</label>
+      <input type="number" id="heightOffset" value="0" step="0.1" />
+
+      <label>Angle</label>
+      <input type="number" id="angle" value="0" step="0.1" />
+
+      <label>Speed</label>
+      <input type="number" id="speed" value="0" step="0.1" />
+
+      <button onclick="applySymbolSettings()">Apply Symbol Settings</button>
+      <button onclick="downloadYML()">📥 Download wing.yml</button>
+    </div>
+
+    <div class="grid-wrapper">
+      <div id="grid" class="grid"></div>
+    </div>
   </div>
-
-  <div class="controls">
-    <label>Wing Side:</label>
-    <select id="wingSide">
-      <option value="left">Left</option>
-      <option value="right">Right</option>
-    </select>
-    <label>Z Layer:</label>
-    <select id="zLayer"></select>
-  </div>
-
-  <div class="config-panel">
-    <label>Particle:</label>
-    <select id="particleType"></select><br/>
-    <label>Speed:</label><input type="number" id="particleSpeed" value="0.1" step="0.1" /><br/>
-    <label>Count:</label><input type="number" id="particleCount" value="1" min="1" /><br/>
-    <button onclick="downloadYML()">📥 Download .yml</button>
-  </div>
-
-  <div id="gridContainer"></div>
 
   <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
   <script>
-    const allParticles = [
-      "ASH", "BARRIER", "BLOCK_CRACK", "BLOCK_DUST", "BUBBLE", "CLOUD", "CRIT", "CRIT_MAGIC", "DAMAGE_INDICATOR",
-      "DRAGON_BREATH", "DRIP_LAVA", "DRIP_WATER", "ENCHANTMENT_TABLE", "END_ROD", "EXPLOSION_HUGE", "EXPLOSION_LARGE",
-      "EXPLOSION_NORMAL", "FIREWORKS_SPARK", "FLAME", "FOOTSTEP", "HEART", "ITEM_CRACK", "LAVA", "MOB_APPEARANCE",
-      "NOTE", "PORTAL", "REDSTONE", "SLIME", "SMOKE_LARGE", "SMOKE_NORMAL", "SNOWBALL", "SNOW_SHOVEL", "SPELL",
-      "SPELL_INSTANT", "SPELL_MOB", "SPELL_MOB_AMBIENT", "SPELL_WITCH", "SPIT", "SUSPENDED", "SWEEP_ATTACK",
-      "TOTEM", "TOWN_AURA", "VILLAGER_ANGRY", "VILLAGER_HAPPY", "WATER_BUBBLE", "WATER_DROP", "WATER_SPLASH", "WATER_WAKE"
-    ];
-
-    const data = {};
-    let currentWidth = 10, currentHeight = 10;
-
-    function populateParticles() {
-      const particleSelect = document.getElementById('particleType');
-      allParticles.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p;
-        opt.textContent = p;
-        particleSelect.appendChild(opt);
-      });
-    }
-
-    function populateZLayers() {
-      const z = parseInt(document.getElementById("zLayers").value);
-      const zSel = document.getElementById("zLayer");
-      zSel.innerHTML = "";
-      for (let i = 0; i < z; i++) {
-        const opt = document.createElement("option");
-        opt.value = i;
-        opt.textContent = i;
-        zSel.appendChild(opt);
-      }
-    }
+    let gridData = [];
+    let isMouseDown = false;
+    let currentSymbol = 'x';
+    const symbolSettings = {};
 
     function generateGrid() {
-      currentWidth = parseInt(document.getElementById("gridWidth").value);
-      currentHeight = parseInt(document.getElementById("gridHeight").value);
-      populateZLayers();
-      const container = document.getElementById("gridContainer");
-      container.innerHTML = "";
+      const w = parseInt(document.getElementById('width').value);
+      const h = parseInt(document.getElementById('height').value);
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+      grid.style.gridTemplateColumns = `repeat(${w}, 20px)`;
+      gridData = Array.from({ length: h }, () => Array(w).fill('-'));
 
-      const grid = document.createElement("div");
-      grid.className = "grid";
-      grid.style.gridTemplateColumns = `repeat(${currentWidth}, 20px)`;
-
-      for (let y = currentHeight - 1; y >= 0; y--) {
-        for (let x = 0; x < currentWidth; x++) {
-          const cell = document.createElement("div");
-          cell.className = "cell";
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
           cell.dataset.x = x;
           cell.dataset.y = y;
-          cell.addEventListener("click", () => toggleCell(cell));
+          cell.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            isMouseDown = true;
+            drawCell(cell);
+          });
+          cell.addEventListener('mouseover', () => {
+            if (isMouseDown) drawCell(cell);
+          });
+          cell.addEventListener('mouseup', () => isMouseDown = false);
           grid.appendChild(cell);
         }
       }
-      container.appendChild(grid);
     }
 
-    function toggleCell(cell) {
+    document.body.addEventListener('mouseup', () => isMouseDown = false);
+
+    function drawCell(cell) {
       const x = parseInt(cell.dataset.x);
       const y = parseInt(cell.dataset.y);
-      const z = parseInt(document.getElementById("zLayer").value);
-      const side = document.getElementById("wingSide").value;
-      const particle = document.getElementById("particleType").value;
-      const speed = parseFloat(document.getElementById("particleSpeed").value);
-      const count = parseInt(document.getElementById("particleCount").value);
+      const symbol = document.getElementById('symbol').value.trim().charAt(0) || 'x';
+      cell.textContent = symbol;
+      gridData[y][x] = symbol;
+    }
 
-      const key = `${side}-${z}`;
-      if (!data[key]) data[key] = [];
-      const pointStr = JSON.stringify([x, y, z, particle, speed, count]);
-      const existing = data[key].findIndex(p => JSON.stringify(p) === pointStr);
-
-      if (existing >= 0) {
-        data[key].splice(existing, 1);
-        cell.classList.remove("active");
-      } else {
-        data[key].push([x, y, z, particle, speed, count]);
-        cell.classList.add("active");
-      }
+    function applySymbolSettings() {
+      const sym = document.getElementById('symbol').value.trim().charAt(0) || 'x';
+      symbolSettings[sym] = {
+        particle: document.getElementById('particle').value,
+        color: document.getElementById('color').value,
+        distance: parseFloat(document.getElementById('distance').value),
+        height: parseFloat(document.getElementById('heightOffset').value),
+        angle: parseFloat(document.getElementById('angle').value),
+        speed: parseFloat(document.getElementById('speed').value)
+      };
+      alert(`Settings applied to symbol "${sym}"`);
     }
 
     function downloadYML() {
-      const yamlOut = { left: {}, right: {} };
-      for (const key in data) {
-        const [side, zStr] = key.split("-");
-        const z = parseInt(zStr);
-        if (!yamlOut[side][zStr]) yamlOut[side][zStr] = [];
+      const ymlObj = {
+        showWhenMoving: true,
+        whitelistedWorlds: ["all"],
+        menuItem: {
+          hideInMenu: false,
+          name: "&5Custom Wing",
+          material: "ENDER_EYE",
+          slot: 1,
+          page: 1,
+          loreWhenEquipped: ["&6Wing equipped"],
+          loreWhenUnequipped: ["&cWing unequipped"],
+          loreWhenNoPermission: ["&cYou don't own this wing"],
+          loreWhenCanBuy: ["&eYou can buy this wing"]
+        },
+        wing: {
+          startVertical: -1.5,
+          startDistanceToPlayer: 0.1,
+          distanceBetweenParticles: 0.1,
+          timer: 0.1,
+          flapAnimation: false,
+          flapSpeed: 1,
+          startOffset: 30,
+          stopOffset: 70,
+          particleLayout: {},
+          particles: symbolSettings
+        }
+      };
 
-        data[key].forEach(([x, y, z, p, s, c]) => {
-          yamlOut[side][zStr].push({
-            x: parseFloat(x),
-            y: parseFloat(y),
-            z: parseFloat(z),
-            particle: p,
-            speed: parseFloat(s),
-            count: parseInt(c)
-          });
-        });
-      }
+      // Build layout
+      gridData.forEach((row, index) => {
+        ymlObj.wing.particleLayout[index + 1] = row.join(',');
+      });
 
-      const ymlStr = jsyaml.dump(yamlOut, { sortKeys: false });
-      const blob = new Blob([ymlStr], { type: "text/yaml" });
+      const ymlText = jsyaml.dump(ymlObj, { lineWidth: -1 });
+      const blob = new Blob([ymlText], { type: 'text/yaml' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const a = document.createElement('a');
       a.href = url;
-      a.download = "wing.yml";
+      a.download = 'wing.yml';
       a.click();
       URL.revokeObjectURL(url);
     }
 
-    window.onload = () => {
-      populateParticles();
-      populateZLayers();
-      generateGrid();
-    };
+    window.onload = generateGrid;
   </script>
 </body>
 </html>
